@@ -181,66 +181,28 @@ let reviewCounts = {
 };
 
 // Credential management
-function saveCredentials() {
-    if (rememberCredentialsCheckbox.checked) {
-        const credentials = {
-            reddit_client_id: redditClientIdInput.value,
-            reddit_client_secret: redditClientSecretInput.value,
-            reddit_username: redditUsernameInput.value,
-            reddit_password: redditPasswordInput.value,
-            openai_api_key: openaiApiKeyInput.value
-        };
-        localStorage.setItem('reddit_mod_credentials', JSON.stringify(credentials));
-    } else {
-        localStorage.removeItem('reddit_mod_credentials');
-    }
-}
 
 function loadSavedCredentials() {
-    const saved = localStorage.getItem('reddit_mod_credentials');
-    if (saved) {
-        try {
-            const credentials = JSON.parse(saved);
-            redditClientIdInput.value = credentials.reddit_client_id || '';
-            redditClientSecretInput.value = credentials.reddit_client_secret || '';
-            redditUsernameInput.value = credentials.reddit_username || '';
-            redditPasswordInput.value = credentials.reddit_password || '';
-            openaiApiKeyInput.value = credentials.openai_api_key || '';
-            rememberCredentialsCheckbox.checked = true;
-        } catch (e) {
-            console.error('Error loading saved credentials:', e);
+    const saved = localStorage.getItem('openai_api_key');
+    if (saved && openaiApiKeyInput) {
+        openaiApiKeyInput.value = saved;
+        if (rememberOpenaiKeyCheckbox) {
+            rememberOpenaiKeyCheckbox.checked = true;
         }
     }
-    // Check if help should be shown after loading
-    checkShowSetupHelp();
 }
 
 function clearCredentials() {
-    redditClientIdInput.value = '';
-    redditClientSecretInput.value = '';
-    redditUsernameInput.value = '';
-    redditPasswordInput.value = '';
-    openaiApiKeyInput.value = '';
+    if (openaiApiKeyInput) {
+        openaiApiKeyInput.value = '';
+    }
+    localStorage.removeItem('openai_api_key');
     localStorage.removeItem('reddit_mod_credentials');
-    checkShowSetupHelp();
 }
 
-function validateCredentials() {
-    const required = [
-        { field: redditClientIdInput, name: 'Reddit Client ID' },
-        { field: redditClientSecretInput, name: 'Reddit Client Secret' },
-        { field: redditUsernameInput, name: 'Reddit Username' },
-        { field: redditPasswordInput, name: 'Reddit Password' },
-        { field: openaiApiKeyInput, name: 'OpenAI API Key' }
-    ];
-    
-    for (const item of required) {
-        if (!item.field.value.trim()) {
-            authStatus.innerHTML = `<i class="fas fa-times"></i> Please enter your ${item.name}`;
-            authStatus.className = 'status-message error';
-            item.field.focus();
-            return false;
-        }
+function validateOpenAIKey() {
+    if (!openaiApiKeyInput || !openaiApiKeyInput.value.trim()) {
+        return false;
     }
     return true;
 }
@@ -261,54 +223,30 @@ logoutBtn.addEventListener('click', () => {
     subredditSelect.disabled = true;
     subredditSelect.innerHTML = '<option value="">Select a subreddit...</option>';
     
-    // Clear credentials if not remembering
-    if (!rememberCredentialsCheckbox.checked) {
-        clearCredentials();
-    }
+    // Clear credentials
+    clearCredentials();
     
     // Redirect to logout endpoint
     window.location.href = '/auth/logout';
 });
 
-// Check if setup help should be shown
-function checkShowSetupHelp() {
-    const allFieldsEmpty = [
-        redditClientIdInput.value.trim(),
-        redditClientSecretInput.value.trim(),
-        redditUsernameInput.value.trim(),
-        redditPasswordInput.value.trim(),
-        openaiApiKeyInput.value.trim()
-    ].every(field => field === '');
-    
-    if (setupHelpEl) {
-        setupHelpEl.style.display = allFieldsEmpty ? 'block' : 'none';
-    }
-}
-
-// Add event listeners to credential inputs to hide help when user starts typing
-function addCredentialInputListeners() {
-    const inputs = [
-        redditClientIdInput,
-        redditClientSecretInput,
-        redditUsernameInput,
-        redditPasswordInput,
-        openaiApiKeyInput
-    ];
-    
-    inputs.forEach(input => {
-        if (input) {
-            input.addEventListener('input', checkShowSetupHelp);
+// OpenAI key management
+saveOpenaiBtn.addEventListener('click', () => {
+    const apiKey = openaiApiKeyInput.value.trim();
+    if (apiKey) {
+        if (rememberOpenaiKeyCheckbox.checked) {
+            localStorage.setItem('openai_api_key', apiKey);
         }
-    });
-}
+        showError('OpenAI API key saved successfully!');
+    } else {
+        showError('Please enter an OpenAI API key');
+    }
+});
 
 // Load saved credentials and initialize page
 document.addEventListener('DOMContentLoaded', function() {
     loadSavedCredentials();
-    loadSavedOpenAIKey();
-    handleAuthParams();
     checkAuthStatus();
-    addCredentialInputListeners();
 });
 
 // Custom subreddit checkbox handler
