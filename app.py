@@ -248,8 +248,20 @@ Example response:
     
     def moderate_subreddit(self, subreddit_name, limit=5, human_review=False):
         """Moderate posts in a subreddit."""
+        import time
+        start_time = time.time()
+        
         try:
-            subreddit = self.reddit.subreddit(subreddit_name)
+            print(f"[PERF] Starting moderation for r/{subreddit_name} at {time.time()}")
+            
+            # Check if we have OAuth token from session
+            if not hasattr(self, 'reddit_token') or not self.reddit_token:
+                from flask import session
+                self.reddit_token = session.get('reddit_token')
+                if not self.reddit_token:
+                    socketio.emit('error', {'message': 'No Reddit authentication token found. Please login again.'})
+                    return
+            
             self.current_subreddit = subreddit_name
             
             # Emit status update
@@ -258,14 +270,41 @@ Example response:
                 'type': 'info'
             })
             
-            # Get items from mod queue
-            mod_queue_items = list(subreddit.mod.modqueue(limit=limit))
+            # Use direct API call with timeout instead of PRAW
+            headers = {
+                'Authorization': f'Bearer {self.reddit_token}',
+                'User-Agent': 'reddit-moderator-bot/2.0'
+            }
+            
+            print(f"[PERF] Making API request to mod queue at {time.time()}")
+            
+            # Get items from mod queue with timeout
+            import requests
+            response = requests.get(
+                f'https://oauth.reddit.com/r/{subreddit_name}/about/modqueue',
+                headers=headers,
+                params={'limit': limit},
+                timeout=30  # 30 second timeout
+            )
+            
+            api_time = time.time()
+            print(f"[PERF] API request completed in {api_time - start_time:.2f} seconds")
+            
+            if response.status_code != 200:
+                error_msg = f"Reddit API error: {response.status_code} - {response.text}"
+                print(f"[ERROR] {error_msg}")
+                socketio.emit('error', {'message': error_msg})
+                return
+            
+            data = response.json()
+            mod_queue_items = data.get('data', {}).get('children', [])
             
             if not mod_queue_items:
                 socketio.emit('status_update', {
                     'message': "Mod queue is empty!",
                     'type': 'info'
                 })
+                print(f"[PERF] Total execution time: {time.time() - start_time:.2f} seconds")
                 return
             
             socketio.emit('status_update', {
@@ -273,55 +312,55 @@ Example response:
                 'type': 'success'
             })
             
-            for i, item in enumerate(mod_queue_items, 1):
-                # Get item details
-                item_type = "submission" if hasattr(item, 'selftext') else "comment"
-                author = str(item.author) if item.author else "[deleted]"
+            print(f"[PERF] Processing {len(mod_queue_items)} items")
+            
+            for i, item_data in enumerate(mod_queue_items, 1):
+                item_start = time.time()
+                print(f"[PERF] Processing item {i} at {item_start}")
+                
+                # Extract item data from API response
+                item = item_data.get('data', {})
+                item_type = "submission" if 'selftext' in item else "comment"
+                author = item.get('author', '[deleted]')
                 
                 if item_type == "submission":
-                    title = item.title
-                    content = item.selftext
+                    title = item.get('title', '')
+                    content = item.get('selftext', '')
                     display_content = content if content else title
                 else:
-                    title = f"Comment on: {item.submission.title[:50]}..."
-                    content = item.body
+                    title = f"Comment on: {item.get('link_title', 'Unknown')[:50]}..."
+                    content = item.get('body', '')
                     display_content = content[:100] + ('...' if len(content) > 100 else '')
                 
                 # Get mod reports and removal reasons
                 reports = []
-                user_reports = []
-                mod_reports = []
+                user_reports = item.get('user_reports', [])
+                mod_reports = item.get('mod_reports', [])
+                
                 try:
-                    # Get user reports
-                    if hasattr(item, 'user_reports') and item.user_reports:
-                        for report in item.user_reports:
-                            user_reports.append(report)
-                            reports.append({
-                                'type': 'user_report',
-                                'reason': report[0] if report else 'No reason given',
-                                'count': report[1] if len(report) > 1 else 1
-                            })
+                    # Process user reports
+                    for report in user_reports:
+                        reports.append({
+                            'type': 'user_report',
+                            'reason': report[0] if report else 'No reason given',
+                            'count': report[1] if len(report) > 1 else 1
+                        })
                     
-                    # Get mod reports  
-                    if hasattr(item, 'mod_reports') and item.mod_reports:
-                        for report in item.mod_reports:
-                            mod_reports.append(report)
-                            reports.append({
-                                'type': 'mod_report',
-                                'reason': report[0] if report else 'No reason given',
-                                'moderator': report[1] if len(report) > 1 else 'Unknown'
-                            })
+                    # Process mod reports  
+                    for report in mod_reports:
+                        reports.append({
+                            'type': 'mod_report',
+                            'reason': report[0] if report else 'No reason given',
+                            'moderator': report[1] if len(report) > 1 else 'Unknown'
+                        })
                     
                     # Check if item was previously removed
                     removal_reason = None
-                    if hasattr(item, 'removed') and item.removed:
-                        if hasattr(item, 'removal_reason') and item.removal_reason:
-                            removal_reason = item.removal_reason
-                        else:
-                            removal_reason = "Previously removed (no reason given)"
+                    if item.get('removed'):
+                        removal_reason = item.get('removal_reason') or "Previously removed (no reason given)"
                             
                 except Exception as e:
-                    print(f"Error getting reports: {e}")
+                    print(f"[ERROR] Error getting reports: {e}")
                 
                 # Emit item being analyzed
                 socketio.emit('item_analyzing', {
@@ -330,20 +369,23 @@ Example response:
                     'type': item_type,
                     'title': title,
                     'author': author,
-                    'score': item.score,
+                    'score': item.get('score', 0),
                     'content': display_content,
                     'full_content': content,  # Send full content for "Read More"
-                    'url': f"https://reddit.com{item.permalink}",
-                    'permalink': item.permalink,
+                    'url': f"https://reddit.com{item.get('permalink', '')}",
+                    'permalink': item.get('permalink', ''),
                     'reports': reports,
                     'user_reports': user_reports,
                     'mod_reports': mod_reports,
                     'removal_reason': removal_reason,
-                    'created_utc': item.created_utc
+                    'created_utc': item.get('created_utc', 0)
                 })
                 
                 # Analyze with AI
-                decision = self.analyze_with_ai(title, content, author, item.score, subreddit_name)
+                ai_start = time.time()
+                decision = self.analyze_with_ai(title, content, author, item.get('score', 0), subreddit_name)
+                ai_time = time.time() - ai_start
+                print(f"[PERF] AI analysis took {ai_time:.2f} seconds")
                 
                 # Emit AI decision
                 socketio.emit('ai_decision', {
@@ -387,9 +429,14 @@ Example response:
             })
             
         except Exception as e:
+            error_time = time.time()
+            print(f"[ERROR] Error in moderation after {error_time - start_time:.2f} seconds: {e}")
             socketio.emit('error', {
                 'message': f"Error moderating r/{subreddit_name}: {str(e)}"
             })
+        finally:
+            total_time = time.time() - start_time
+            print(f"[PERF] Total moderation time: {total_time:.2f} seconds")
     
     def chat_with_ai(self, user_message, context):
         """Chat with AI about a specific moderation decision."""
@@ -725,8 +772,12 @@ def handle_process_batch_actions(data):
         socketio.emit('batch_process_complete', results)
         
     except Exception as e:
-        print(f"Error processing batch actions: {e}")
-        socketio.emit('batch_process_error', {'error': str(e)})
+        error_time = time.time()
+        print(f"[ERROR] Error in moderation after {error_time - start_time:.2f} seconds: {e}")
+        socketio.emit('error', {'message': f'Moderation failed: {str(e)}'})
+    finally:
+        total_time = time.time() - start_time
+        print(f"[PERF] Total moderation time: {total_time:.2f} seconds")
 
 @socketio.on('ai_chat')
 def handle_ai_chat(data):
