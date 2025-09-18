@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reddit Moderation Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fab fa-reddit"></i> Reddit Moderation Dashboard</h1>
+            <p class="subtitle">AI-Powered Content Moderation</p>
+        </header>
+
+        <div class="auth-section">
+            <div id="login-form" class="login-form">
+                <h3><i class="fas fa-sign-in-alt"></i> Login to Reddit</h3>
+                <div class="oauth-section">
+                    <p>Connect your Reddit account to access your moderated subreddits:</p>
+                    <button id="reddit-oauth-btn" class="btn btn-primary btn-large">
+                        <i class="fab fa-reddit"></i> Login with Reddit
+                    </button>
+                </div>
+                
+                <div class="openai-section" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-group full-width">
+                            <label for="openai-api-key">OpenAI API Key:</label>
+                            <input type="password" id="openai-api-key" class="form-control" placeholder="Your OpenAI API key (sk-...)">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="remember-openai-key" checked>
+                                <span class="checkmark"></span>
+                                Remember OpenAI key (stored locally)
+                            </label>
+                        </div>
+                    </div>
+                    <button id="save-openai-btn" class="btn btn-secondary">
+                        <i class="fas fa-save"></i> Save OpenAI Key
+                    </button>
+                </div>
+            </div>
+            
+            <div id="logged-in-section" class="logged-in-section" style="display: none;">
+                <div class="user-info">
+                    <i class="fas fa-user-check"></i>
+                    <span>Logged in as: <strong id="current-user"></strong></span>
+                    <button id="logout-btn" class="btn btn-secondary btn-small">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
+            
+            <div id="auth-status" class="status-message"></div>
+        </div>
+
+        <div class="moderation-section">
+            <div class="input-group">
+                <div class="form-group">
+                    <label for="subreddit-select">Subreddit to Moderate:</label>
+                    <select id="subreddit-select" class="form-control" disabled>
+                        <option value="">Select a subreddit...</option>
+                    </select>
+                    <div class="custom-subreddit">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="custom-subreddit-checkbox">
+                            <span class="checkmark"></span>
+                            Enter custom subreddit
+                        </label>
+                        <input type="text" id="subreddit-input" placeholder="e.g., grillsgonewild" class="form-control" style="display: none; margin-top: 10px;">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="limit-input">Number of Posts:</label>
+                    <select id="limit-input" class="form-control">
+                        <option value="1">1 post</option>
+                        <option value="3">3 posts</option>
+                        <option value="5" selected>5 posts</option>
+                        <option value="10">10 posts</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="human-review-checkbox" checked>
+                        <span class="checkmark"></span>
+                        Human Review Mode
+                    </label>
+                    <small>When enabled, review AI decisions before processing</small>
+                </div>
+            </div>
+
+            <button id="start-btn" class="btn btn-success" disabled>
+                <i class="fas fa-play"></i> Start Moderation
+            </button>
+        </div>
+
+        <div class="results-section">
+            <div id="status-log" class="status-log"></div>
+            <div id="moderation-results" class="results-container"></div>
+            
+            <div id="batch-actions" class="batch-actions" style="display: none;">
+                <div class="batch-summary">
+                    <h3>Review Summary</h3>
+                    <div class="summary-stats">
+                        <span id="approve-count" class="stat-badge approve">0 to Approve</span>
+                        <span id="remove-count" class="stat-badge remove">0 to Remove</span>
+                        <span id="skip-count" class="stat-badge skip">0 to Skip</span>
+                    </div>
+                </div>
+                <button id="process-actions-btn" class="btn btn-primary btn-large">
+                    <i class="fas fa-cogs"></i> Process All Actions
+                </button>
+            </div>
+        </div>
+
+        <div class="results-section">
+            <div id="status-log" class="status-log"></div>
+            <div id="moderation-results" class="moderation-results"></div>
+        </div>
+
+        <div class="stats-section">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="total-processed">0</div>
+                    <div class="stat-label">Posts Processed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="total-approved">0</div>
+                    <div class="stat-label">Approved</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="total-removed">0</div>
+                    <div class="stat-label">Removed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="api-calls">0</div>
+                    <div class="stat-label">AI API Calls</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
