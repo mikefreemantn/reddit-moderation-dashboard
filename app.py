@@ -544,7 +544,7 @@ def reddit_oauth():
         'state': state,
         'redirect_uri': redirect_uri,
         'duration': 'permanent',
-        'scope': 'identity read'
+        'scope': 'identity mysubreddits modposts read'
     }
     
     auth_url = 'https://www.reddit.com/api/v1/authorize?' + urllib.parse.urlencode(params)

@@ -77,6 +77,9 @@ function showLoggedInState(username) {
     startBtn.disabled = false;
     subredditSelect.disabled = false;
     
+    // Show OpenAI API key section after successful login
+    openaiSection.style.display = 'block';
+    
     // Show OpenAI section if not already configured
     const savedOpenAIKey = localStorage.getItem('openai_api_key');
     if (!savedOpenAIKey) {
