@@ -245,60 +245,9 @@ function validateCredentials() {
     return true;
 }
 
-// Authentication
-authBtn.addEventListener('click', async () => {
-    if (!validateCredentials()) {
-        return;
-    }
-    
-    authBtn.disabled = true;
-    authBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Authenticating...';
-    
-    const credentials = {
-        reddit_client_id: redditClientIdInput.value.trim(),
-        reddit_client_secret: redditClientSecretInput.value.trim(),
-        reddit_username: redditUsernameInput.value.trim(),
-        reddit_password: redditPasswordInput.value.trim(),
-        openai_api_key: openaiApiKeyInput.value.trim()
-    };
-    
-    try {
-        const response = await fetch('/api/authenticate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(credentials)
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            // Save credentials if requested
-            saveCredentials();
-            
-            // Show success and switch to logged-in view
-            authStatus.innerHTML = `<i class="fas fa-check"></i> ${data.message}`;
-            authStatus.className = 'status-message success';
-            
-            loginForm.style.display = 'none';
-            loggedInSection.style.display = 'block';
-            currentUserEl.textContent = data.username || redditUsernameInput.value;
-            
-            startBtn.disabled = false;
-            
-            // Load moderated subreddits
-            loadModeratedSubreddits();
-        } else {
-            authStatus.innerHTML = `<i class="fas fa-times"></i> ${data.message}`;
-            authStatus.className = 'status-message error';
-            authBtn.innerHTML = '<i class="fas fa-key"></i> Authenticate APIs';
-            authBtn.disabled = false;
-        }
-    } catch (error) {
-        authStatus.innerHTML = `<i class="fas fa-times"></i> Connection error: ${error.message}`;
-        authStatus.className = 'status-message error';
-        authBtn.innerHTML = '<i class="fas fa-key"></i> Authenticate APIs';
-        authBtn.disabled = false;
-    }
+// OAuth Authentication
+redditOAuthBtn.addEventListener('click', () => {
+    window.location.href = '/auth/reddit';
 });
 
 // Logout functionality
@@ -317,9 +266,8 @@ logoutBtn.addEventListener('click', () => {
         clearCredentials();
     }
     
-    // Reset auth button
-    authBtn.innerHTML = '<i class="fas fa-key"></i> Authenticate APIs';
-    authBtn.disabled = false;
+    // Redirect to logout endpoint
+    window.location.href = '/auth/logout';
 });
 
 // Check if setup help should be shown
