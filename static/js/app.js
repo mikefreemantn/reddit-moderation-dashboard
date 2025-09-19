@@ -93,7 +93,7 @@ async function loadSubreddits() {
         const data = await response.json();
         
         if (data.error) {
-            showStatus(`Error loading subreddits: ${data.error}`, 'error');
+            showError(`Error loading subreddits: ${data.error}`);
             return;
         }
         
@@ -108,10 +108,10 @@ async function loadSubreddits() {
             subredditSelect.appendChild(option);
         });
         
-        showStatus(`Loaded ${data.subreddits.length} moderated subreddits`, 'success');
+        console.log(`Loaded ${data.subreddits.length} moderated subreddits`);
     } catch (error) {
         console.error('Error loading subreddits:', error);
-        showStatus('Error loading subreddits', 'error');
+        showError('Error loading subreddits');
     }
 }
 
@@ -127,7 +127,7 @@ logoutBtn.addEventListener('click', () => {
 saveOpenaiBtn.addEventListener('click', () => {
     const apiKey = openaiApiKeyInput.value.trim();
     if (!apiKey) {
-        showStatus('Please enter an OpenAI API key', 'error');
+        showError('Please enter an OpenAI API key');
         return;
     }
     
@@ -136,7 +136,7 @@ saveOpenaiBtn.addEventListener('click', () => {
     }
     
     openaiSection.style.display = 'none';
-    showStatus('OpenAI API key saved', 'success');
+    showError('OpenAI API key saved successfully!');
 });
 
 // Load saved OpenAI key on page load
@@ -153,11 +153,11 @@ function handleAuthParams() {
     const authParam = urlParams.get('auth');
     
     if (authParam === 'success') {
-        showStatus('Successfully logged in with Reddit!', 'success');
+        showError('Successfully logged in with Reddit!');
         // Remove the parameter from URL
         window.history.replaceState({}, document.title, window.location.pathname);
     } else if (authParam === 'logout') {
-        showStatus('Successfully logged out', 'info');
+        showError('Successfully logged out');
         window.history.replaceState({}, document.title, window.location.pathname);
     }
 }

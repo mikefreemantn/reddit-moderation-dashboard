@@ -734,22 +734,29 @@ def get_moderated_subreddits():
         return jsonify({'error': f'Error fetching subreddits: {str(e)}'}), 500
 
 @socketio.on('start_moderation')
-def handle_moderation(data):
-    subreddit_name = data.get('subreddit', '').strip()
-    limit = int(data.get('limit', 5))
-    human_review = data.get('human_review', True)
+def handle_start_moderation(data):
+    """Start moderation process."""
+    subreddit_name = data.get('subreddit', '')
+    limit = data.get('limit', 5)
+    human_review = data.get('human_review', False)
     
-    if not subreddit_name:
-        emit('error', {'message': 'Please enter a subreddit name'})
+    # Check if user is authenticated via session
+    if not session.get('authenticated'):
+        emit('error', {'message': 'Please authenticate first'})
         return
     
-    if not dashboard.reddit:
-        emit('error', {'message': 'Please authenticate first'})
+    # Create dashboard instance with session token
+    mod_dashboard = ModerationDashboard()
+    mod_dashboard.reddit_token = session.get('reddit_access_token')
+    mod_dashboard.reddit_username = session.get('reddit_username')
+    
+    if not mod_dashboard.reddit_token:
+        emit('error', {'message': 'No Reddit access token found. Please login again.'})
         return
     
     # Run moderation in background thread
     thread = threading.Thread(
-        target=dashboard.moderate_subreddit,
+        target=mod_dashboard.moderate_subreddit,
         args=(subreddit_name, limit, human_review)
     )
     thread.daemon = True
@@ -763,12 +770,21 @@ def handle_process_batch_actions(data):
         subreddit_name = data.get('subreddit', '')
         dry_run = data.get('dry_run', True)
         
-        dashboard = ModerationDashboard()
-        if not dashboard.authenticate():
-            socketio.emit('batch_process_error', {'error': 'Authentication failed'})
+        # Check authentication via session
+        if not session.get('authenticated'):
+            socketio.emit('batch_process_error', {'error': 'Not authenticated'})
             return
         
-        results = dashboard.process_batch_actions(actions, subreddit_name, dry_run)
+        # Create dashboard with session token
+        mod_dashboard = ModerationDashboard()
+        mod_dashboard.reddit_token = session.get('reddit_access_token')
+        mod_dashboard.reddit_username = session.get('reddit_username')
+        
+        if not mod_dashboard.reddit_token:
+            socketio.emit('batch_process_error', {'error': 'No access token'})
+            return
+        
+        results = mod_dashboard.process_batch_actions(actions, subreddit_name, dry_run)
         socketio.emit('batch_process_complete', results)
         
     except Exception as e:
@@ -790,8 +806,20 @@ def handle_ai_chat(data):
         
         print(f"AI Chat handler - Processing item {item_number}, message: {user_message}")
         
-        # Use the global dashboard instance instead of creating a new one
-        response = dashboard.chat_with_ai(user_message, context)
+        # Check authentication via session
+        if not session.get('authenticated'):
+            socketio.emit('ai_chat_response', {
+                'item_number': item_number,
+                'response': 'Error: Not authenticated'
+            })
+            return
+        
+        # Create dashboard with session token
+        mod_dashboard = ModerationDashboard()
+        mod_dashboard.reddit_token = session.get('reddit_access_token')
+        mod_dashboard.reddit_username = session.get('reddit_username')
+        
+        response = mod_dashboard.chat_with_ai(user_message, context)
         
         print(f"AI Chat handler - Got response, emitting to client...")
         socketio.emit('ai_chat_response', {
